@@ -1,0 +1,27 @@
+{
+  "name": "my-angular",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "NODE_ENV=test karma start"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "babel-core": "latest",
+    "babel-loader": "^6.2.0",
+    "babel-preset-es2015": "latest",
+    "babel-preset-stage-0": "latest",
+    "jasmine-core": "^2.4.1",
+    "karma": "^0.13.16",
+    "karma-chrome-launcher": "^0.2.2",
+    "karma-coverage": "^0.5.3",
+    "karma-jasmine": "*",
+    "karma-phantomjs-launcher": "*",
+    "karma-webpack": "latest",
+    "phantomjs": "^1.9.19",
+    "ramda": "^0.19.0",
+    "webpack": "latest"
+  }
+}
