@@ -1,16 +1,53 @@
 'use strict';
-import Scope from './index';
-import { prop, times, range } from 'ramda';
+import $RootScopeProvider from './Scope';
+import $ParseProvider from '../parse';
+import $FilterProvider from '../filter';
+import _, { property, times, range } from 'lodash';
+function newScope(){
 
+    var cache = {};
+    var $provide = {
+        factory(name, factory){
+            cache[name] = factory;
+        }
+    };
+    var $injector = {
+        get(name){
+            return cache[name]();
+        }
+    };
+    var filterProvider = new $FilterProvider($provide);
+    var parseProvider = new $ParseProvider();
+    var filter = filterProvider.$get($injector);
+    return new $RootScopeProvider().$get(parseProvider.$get(filter));
+}
 describe('scope', ()=> {
     it('should create an scope', ()=> {
-        var scope = new Scope();
+        var scope = new $RootScopeProvider().$get();
         scope.prop = 1;
         expect(scope.prop).toBe(1)
     });
     describe('digest', ()=> {
-        var scope;
-        beforeEach(()=>scope = new Scope());
+        var scope, register;
+        beforeEach(()=>{
+
+            var cache = {};
+            var $provide = {
+                factory(name, factory){
+                    cache[name] = factory;
+                }
+            };
+            var $injector = {
+                get(name){
+                    return cache[name]();
+                }
+            };
+            var filterProvider = new $FilterProvider($provide);
+            var parseProvider = new $ParseProvider();
+            register = filterProvider.register.bind(filterProvider);
+            var filter = filterProvider.$get($injector);
+            scope = new $RootScopeProvider().$get(parseProvider.$get(filter));
+        });
 
         it('should call watchFn after digest was called', ()=> {
             var watchFn = Function.prototype;
@@ -61,11 +98,11 @@ describe('scope', ()=> {
         it('should trigger chained watchers in the same digest', ()=> {
             scope.a = 10;
 
-            scope.$watch(prop('b'), (newVal, oldVal, scope)=> {
+            scope.$watch(property('b'), (newVal, oldVal, scope)=> {
                 newVal && (scope.c = 1);
             });
 
-            scope.$watch(prop('a'), (newVal, oldVal, scope)=> {
+            scope.$watch(property('a'), (newVal, oldVal, scope)=> {
                 newVal && (scope.b = 2);
             });
             scope.$digest();
@@ -80,10 +117,10 @@ describe('scope', ()=> {
         it('should have limited number of digest circles', ()=> {
             scope.countA = 0;
             scope.countB = 0;
-            scope.$watch(prop('countA'), (newVal, oldVal, scope)=> {
+            scope.$watch(property('countA'), (newVal, oldVal, scope)=> {
                 scope.countB++
             });
-            scope.$watch(prop('countB'), (newVal, oldVal, scope)=> {
+            scope.$watch(property('countB'), (newVal, oldVal, scope)=> {
                 scope.countA++
             });
             expect(scope.$digest.bind(scope)).toThrow();
@@ -92,12 +129,12 @@ describe('scope', ()=> {
         it('should end $digest when last watcher is clean', ()=> {
             scope.data = range(100);
             var watchExecs = 0;
-            times((n)=> {
+            times(100, (n)=> {
                 scope.$watch((scope)=> {
                     watchExecs++;
                     return scope.data[n];
                 }, Function.prototype)
-            }, 100);
+            });
 
             scope.$digest();
             expect(watchExecs).toBe(200);
@@ -109,8 +146,8 @@ describe('scope', ()=> {
         it('should call watchers added inside other watchers', ()=> {
             var watchFn = jasmine.createSpy();
 
-            scope.$watch(prop('a'), (newVal, oldVal, scope)=> {
-                scope.$watch(prop('b'), watchFn)
+            scope.$watch(property('a'), (newVal, oldVal, scope)=> {
+                scope.$watch(property('b'), watchFn)
             });
             scope.$digest();
             expect(watchFn).toHaveBeenCalled();
@@ -119,7 +156,7 @@ describe('scope', ()=> {
         it('should trigger listener when inner fields of object have been changed', ()=> {
             var listener = jasmine.createSpy();
             scope.data = [];
-            scope.$watch(prop('data'), listener, true);
+            scope.$watch(property('data'), listener, true);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
             scope.data.push(1);
@@ -130,7 +167,7 @@ describe('scope', ()=> {
         it('should correctly handle NaN', ()=> {
             var listener = jasmine.createSpy();
             scope.a = +'dddddd';
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
             scope.$digest();
@@ -155,7 +192,7 @@ describe('scope', ()=> {
         it('should should run digest circle after $apply', ()=> {
             var listener = jasmine.createSpy();
 
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
             scope.$apply(scope=>scope.a = 10);
@@ -164,7 +201,7 @@ describe('scope', ()=> {
 
         it('should execute fn via $evalAsync in the same digest circle', ()=> {
             scope.asyncEvaluated = false;
-            scope.$watch(prop('a'), (newVal, oldVal, scope)=> {
+            scope.$watch(property('a'), (newVal, oldVal, scope)=> {
                 scope.$evalAsync((scope)=> {
                     scope.asyncEvaluated = true;
                 });
@@ -233,7 +270,7 @@ describe('scope', ()=> {
         it('should schedule a $digest circle in $evalAsync', (done)=> {
             var listener = jasmine.createSpy();
 
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listener);
             scope.$evalAsync((scope)=> {
             });
 
@@ -246,7 +283,7 @@ describe('scope', ()=> {
 
         it('should allow $apply with $applyAsync', (done)=> {
             var listener = jasmine.createSpy();
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
             scope.$applyAsync(scope=> {
@@ -262,7 +299,7 @@ describe('scope', ()=> {
 
         it('should execute $applyAsync in another $digest circle', (done)=> {
             var val = false;
-            scope.$watch(prop('a'), (newVal, oldVal, scope)=> {
+            scope.$watch(property('a'), (newVal, oldVal, scope)=> {
                 scope.$applyAsync(()=> {
                     val = true;
                 });
@@ -334,7 +371,7 @@ describe('scope', ()=> {
             scope.$$postDigest(()=> {
                 scope.a = 20;
             });
-            scope.$watch(prop('a'), (newVal, oldVal, scope)=> {
+            scope.$watch(property('a'), (newVal, oldVal, scope)=> {
                 scope.dg = newVal;
             });
 
@@ -350,7 +387,7 @@ describe('scope', ()=> {
             var watchFn = jasmine.createSpy().and.throwError('watcher');
             var listener = jasmine.createSpy();
             scope.$watch(watchFn);
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
         });
@@ -358,8 +395,8 @@ describe('scope', ()=> {
         it('should catch exception inside listener and keep going', ()=> {
             var listenerThrowable = jasmine.createSpy().and.throwError('listener');
             var listener = jasmine.createSpy();
-            scope.$watch(prop('a'), listenerThrowable);
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listenerThrowable);
+            scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
         });
@@ -367,7 +404,7 @@ describe('scope', ()=> {
         it('should catch exception in $evalAsync', (done)=> {
             var throwable = jasmine.createSpy().and.throwError('$evalAsync');
             var listener = jasmine.createSpy();
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listener);
             scope.$evalAsync(throwable);
             setTimeout(()=> {
                 expect(listener.calls.count()).toBe(1);
@@ -402,7 +439,7 @@ describe('scope', ()=> {
         });
         it('should not call listener when watcher was destroyed', ()=> {
             var listener = jasmine.createSpy();
-            var disableWatcher = scope.$watch(prop('a'), listener);
+            var disableWatcher = scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
             disableWatcher();
@@ -435,11 +472,11 @@ describe('scope', ()=> {
         it('should allow a watcher delete another watcher from $digest', ()=> {
             var listener = jasmine.createSpy();
             scope.a = 10;
-            scope.$watch(prop('a'), ()=> {
+            scope.$watch(property('a'), ()=> {
                 destroyWatch();
             });
             var destroyWatch = scope.$watch(Function.prototype, Function.prototype);
-            scope.$watch(prop('a'), listener);
+            scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(1);
         });
@@ -450,17 +487,130 @@ describe('scope', ()=> {
                 w2();
             });
 
-            var w2 = scope.$watch(prop('a'), listener);
+            var w2 = scope.$watch(property('a'), listener);
             scope.$digest();
             expect(listener.calls.count()).toBe(0);
 
         });
+        it('removes constant watches after first invocation', function() {
+            scope.$watch('[1, 2, 3]', function() {});
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(0);
+        });
+        it('accepts one-time watches', function() {
+            var theValue;
+            scope.aValue = 42;
+            scope.$watch('::aValue', function(newValue, oldValue, scope) {
+                theValue = newValue;
+            });
+            scope.$digest();
+            expect(theValue).toBe(42);
+        });
+
+        it('removes one-time watches after first invocation', function() {
+            scope.aValue = 42;
+            scope.$watch('::aValue', function() { });
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(0);
+        });
+
+        it('does not remove one-time-watches until value is defined', function() {
+            scope.$watch('::aValue', function() { });
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(1);
+            scope.aValue = 42;
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(0);
+        });
+
+        it('does not remove one-time-watches until value stays defined', function() {
+            scope.aValue = 42;
+            scope.$watch('::aValue', function() { });
+            var unwatchDeleter = scope.$watch('aValue', function() {
+                delete scope.aValue;
+            });
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(2);
+            scope.aValue = 42;
+            unwatchDeleter();
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(0);
+        });
+
+        it('does not remove one-time watches before all array items defined', function() {
+            scope.$watch('::[1, 2, aValue]', function() { }, true);
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(1);
+            scope.aValue = 3;
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(0);
+        });
+        it('does not remove one-time watches before all object vals defined', function() {
+            scope.$watch('::{a: 1, b: aValue}', function() { }, true);
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(1);
+            scope.aValue = 3;
+            scope.$digest();
+            expect(scope.$$watchers.length).toBe(0);
+        });
+        it('does not re-evaluate an array if its contents do not change', function() {
+            var values = [];
+            scope.a = 1;
+            scope.b = 2;
+            scope.c = 3;
+            scope.$watch('[a, b, c]', function(value) {
+                values.push(value);
+            });
+            scope.$digest();
+            expect(values.length).toBe(1);
+            expect(values[0]).toEqual([1, 2, 3]);
+            scope.$digest();
+            expect(values.length).toBe(1);
+            scope.c = 4;
+            scope.$digest();
+            expect(values.length).toBe(2);
+            expect(values[1]).toEqual([1, 2, 4]);
+        });
+        it('allows $stateful filter value to change over time', function(done) {
+            register('withTime', function() {
+                return _.extend(function(v) {
+                    return new Date().toISOString() + ': ' + v;
+                }, {
+                    $stateful: true
+                });
+            });
+            var listenerSpy = jasmine.createSpy();
+            scope.$watch('42 | withTime', listenerSpy);
+            scope.$digest();
+            var firstValue = listenerSpy.calls.mostRecent().args[0];
+            setTimeout(function() {
+                scope.$digest();
+                var secondValue = listenerSpy.calls.mostRecent().args[0];
+                expect(secondValue).not.toEqual(firstValue);
+                done();
+            }, 100);
+        });
     });
 
     describe('$watchGroup', ()=> {
-        var scope;
+        var scope, register;
         beforeEach(()=> {
-            scope = new Scope();
+            var cache = {};
+            var $provide = {
+                factory(name, factory){
+                    cache[name] = factory;
+                }
+            };
+            var $injector = {
+                get(name){
+                    return cache[name]();
+                }
+            };
+            var filterProvider = new $FilterProvider($provide);
+            var parseProvider = new $ParseProvider();
+            register = filterProvider.register.bind(filterProvider);
+            var filter = filterProvider.$get($injector);
+            scope = new $RootScopeProvider().$get(parseProvider.$get(filter));
         });
 
         it('should take watches as an array and call the listener with the array of values watched', ()=> {
@@ -470,8 +620,8 @@ describe('scope', ()=> {
             scope.b = 20;
 
             scope.$watchGroup([
-                prop('a'),
-                prop('b')
+                property('a'),
+                property('b')
             ], listener);
 
             scope.$digest();
@@ -484,8 +634,8 @@ describe('scope', ()=> {
             scope.b = 20;
 
             scope.$watchGroup([
-                prop('a'),
-                prop('b')
+                property('a'),
+                property('b')
             ], listener);
 
             scope.$digest();
@@ -563,7 +713,7 @@ describe('scope', ()=> {
         var spy;
         var watcher;
         beforeEach(()=> {
-            parent = new Scope();
+            parent = newScope();
             child = parent.$new();
             spy = jasmine.createSpy();
             watcher = jasmine.createSpy();
@@ -593,7 +743,7 @@ describe('scope', ()=> {
             expect(spy.calls.count()).toBe(2);
         });
         it('should be nested at any depth', ()=> {
-            var a = new Scope();
+            var a = parent;
             var aa = a.$new();
             var aaa = aa.$new();
             var aaaa = aaa.$new();
@@ -625,7 +775,7 @@ describe('scope', ()=> {
         });
 
         it('should not digest its parents', ()=> {
-            parent.$watch(prop('a'), spy);
+            parent.$watch(property('a'), spy);
             child.$digest();
             expect(spy.calls.count()).toBe(0);
         });
@@ -639,17 +789,17 @@ describe('scope', ()=> {
 
         it('should digest its children', ()=> {
             child.a = 10;
-            child.$watch(prop('a'), spy);
+            child.$watch(property('a'), spy);
             parent.$digest();
             expect(spy).toHaveBeenCalled();
         });
         it('should $digest from root if $apply', ()=> {
-            parent.$watch(prop('a'), spy);
+            parent.$watch(property('a'), spy);
             child.$apply();
             expect(spy).toHaveBeenCalled();
         });
         it('should schedule $digest at root scope after $evalAsync', (done)=> {
-            parent.$watch(prop('a'), spy);
+            parent.$watch(property('a'), spy);
             child.$evalAsync(Function.prototype);
             setTimeout(()=> {
                 expect(spy).toHaveBeenCalled();
@@ -665,19 +815,19 @@ describe('scope', ()=> {
 
         it('should $digest children when isolated', ()=> {
             child = parent.$new(true);
-            child.$watch(prop('a'), spy);
+            child.$watch(property('a'), spy);
             parent.$digest();
             expect(spy).toHaveBeenCalled();
         });
         it('should digest from root on $apply when isolated', ()=> {
             child = parent.$new(true);
-            parent.$watch(prop('a'), spy);
+            parent.$watch(property('a'), spy);
             child.$apply();
             expect(spy).toHaveBeenCalled();
         });
         it('should digest from root on $evalAsync when isolated', (done)=> {
             child = parent.$new(true);
-            parent.$watch(prop('a'), spy);
+            parent.$watch(property('a'), spy);
             child.$evalAsync(Function.prototype);
             setTimeout(()=> {
                 expect(spy).toHaveBeenCalled();
@@ -705,17 +855,18 @@ describe('scope', ()=> {
             child = parent.$new(true);
             child.$applyAsync(spy);
             setTimeout(()=> {
-                expect(spy).toHaveBeenCalledWith(child);
+                expect(spy.calls.mostRecent().args[0]).toBe(child);
                 done();
-            });
+            }, 50);
         });
+
     });
     describe('hierarchical inheritance', ()=> {
 
         it('should take another scope as parent', ()=> {
             var spy = jasmine.createSpy();
-            var prototypeParent = new Scope();
-            var hierarchyParent = new Scope();
+            var prototypeParent = newScope();
+            var hierarchyParent = newScope();
             var child = prototypeParent.$new(false, hierarchyParent);
 
             prototypeParent.a = 10;
@@ -732,9 +883,9 @@ describe('scope', ()=> {
     describe('$destroy', ()=> {
         it('should not digest if destroyed', ()=> {
             var spy = jasmine.createSpy();
-            var parent = new Scope();
+            var parent = newScope();
             var child = parent.$new();
-            child.$watch(prop('a'), spy);
+            child.$watch(property('a'), spy);
             parent.$digest();
             expect(spy.calls.count()).toBe(1);
             child.a = 20;
@@ -748,11 +899,11 @@ describe('scope', ()=> {
         var scope;
         var spy;
         beforeEach(()=> {
-            scope = new Scope();
+            scope = newScope();
             spy = jasmine.createSpy();
         });
         it('should use general $watch if non object or array watched', ()=> {
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
 
@@ -766,7 +917,7 @@ describe('scope', ()=> {
         });
         it('should work correctly for NaN', ()=> {
             scope.a = 0 / 0;
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
 
@@ -775,7 +926,7 @@ describe('scope', ()=> {
         });
 
         it('should notice when value becomes an array', ()=> {
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a = [1, 2, 3];
@@ -786,7 +937,7 @@ describe('scope', ()=> {
         });
         it('should notice elem added into an array', ()=> {
             scope.a = [];
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a.push(1);
@@ -798,7 +949,7 @@ describe('scope', ()=> {
 
         it('should notice an element removed from an array', ()=> {
             scope.a = [1];
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a.shift();
@@ -810,7 +961,7 @@ describe('scope', ()=> {
 
         it('should notice an item replace in an array', ()=> {
             scope.a = [1, 2, 3];
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a[0] = 10;
@@ -822,7 +973,7 @@ describe('scope', ()=> {
 
         it('should notice items reordered in an array', ()=> {
             scope.a = [3, 2, 5, 3];
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a.sort();
@@ -833,7 +984,7 @@ describe('scope', ()=> {
         });
         it('should correctly handle NaNs in arrays', ()=> {
             scope.a = [3, NaN, 5, 3];
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
         });
@@ -842,7 +993,7 @@ describe('scope', ()=> {
             (function () {
                 scope.a = arguments;
             })(1, 2, 3, 4);
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a[0] = 10;
@@ -854,7 +1005,7 @@ describe('scope', ()=> {
         it('should notice an item replaced in an NodeList object', ()=> {
             document.documentElement.appendChild(document.createElement('div'));
             scope.a = document.getElementsByTagName('div');
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             document.documentElement.appendChild(document.createElement('div'));
@@ -865,7 +1016,7 @@ describe('scope', ()=> {
         });
 
         it('should notice when the value becomes an object', ()=> {
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a = {};
@@ -877,7 +1028,7 @@ describe('scope', ()=> {
 
         it('should notice an attribute added to an object', ()=> {
             scope.a = {};
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
 
@@ -892,7 +1043,7 @@ describe('scope', ()=> {
 
         it('should notice an attribute changed in an object', ()=> {
             scope.a = {b: 20};
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
 
@@ -906,7 +1057,7 @@ describe('scope', ()=> {
         });
         it('should correctly handle NaN inside an object', ()=> {
             scope.a = {b: 20, c: NaN};
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
 
@@ -919,7 +1070,7 @@ describe('scope', ()=> {
         });
         it('should notice an attribute removed from an object', ()=> {
             scope.a = {b: 20, c: 40};
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
 
@@ -932,7 +1083,7 @@ describe('scope', ()=> {
         });
         it('should not consider any object with a length attribute to be an array', ()=> {
             scope.a = {b: 20, length: 50};
-            scope.$watchCollection(prop('a'), spy);
+            scope.$watchCollection(property('a'), spy);
             scope.$digest();
             expect(spy.calls.count()).toBe(1);
             scope.a.c = 10;
@@ -946,7 +1097,7 @@ describe('scope', ()=> {
         it('should give the old non-collection value to listeners', ()=> {
             scope.a = 40;
             var oldValue;
-            scope.$watchCollection(prop('a'), (n, o)=> {
+            scope.$watchCollection(property('a'), (n, o)=> {
                 oldValue = o;
             });
             scope.$digest();
@@ -958,7 +1109,7 @@ describe('scope', ()=> {
         it('should give the old array value to listeners', ()=> {
             scope.a = [40];
             var oldValue;
-            scope.$watchCollection(prop('a'), (n, o)=> {
+            scope.$watchCollection(property('a'), (n, o)=> {
                 oldValue = o;
             });
             scope.$digest();
@@ -970,7 +1121,7 @@ describe('scope', ()=> {
         it('should give the old array value to listeners', ()=> {
             scope.a = {b: 40};
             var oldValue;
-            scope.$watchCollection(prop('a'), (n, o)=> {
+            scope.$watchCollection(property('a'), (n, o)=> {
                 oldValue = o;
             });
             scope.$digest();
@@ -982,7 +1133,7 @@ describe('scope', ()=> {
         it('should new values as old in the first call', ()=> {
             scope.a = {b: 40};
             var oldValue;
-            scope.$watchCollection(prop('a'), (n, o)=> {
+            scope.$watchCollection(property('a'), (n, o)=> {
                 oldValue = o;
             });
             scope.$digest();
@@ -995,7 +1146,7 @@ describe('scope', ()=> {
         var parent, scope, child, isolatedChild,
             listener1, listener2, listener3;
         beforeEach(()=> {
-            parent = new Scope();
+            parent = newScope();
             scope = parent.$new();
             child = scope.$new();
             isolatedChild = scope.$new(true);
@@ -1251,6 +1402,44 @@ describe('scope', ()=> {
                 scope[method]('event');
                 expect(listener1).toHaveBeenCalled();
                 expect(listener2).toHaveBeenCalled();
+            });
+        });
+
+
+        it('accepts expressions for watch functions', function () {
+            scope.aValue = 42;
+            scope.$watch('aValue', listener1);
+            scope.$digest();
+            expect(listener1).toHaveBeenCalledWith(42, jasmine.anything(), jasmine.anything());
+        });
+
+        it('accepts expressions for watch functions', function () {
+            var theValue;
+            scope.aColl = [1, 2, 3];
+            scope.$watchCollection('aColl', function (newValue, oldValue, scope) {
+                theValue = newValue;
+            });
+            scope.$digest();
+            expect(theValue).toEqual([1, 2, 3]);
+        });
+
+        it('accepts expressions in $eval', function () {
+            expect(scope.$eval('42')).toBe(42);
+        });
+
+        it('accepts expressions in $apply', function () {
+            scope.aFunction = _.constant(42);
+            expect(scope.$apply('aFunction()')).toBe(42);
+        });
+        it('accepts expressions in $evalAsync', function (done) {
+            var called;
+            scope.aFunction = function () {
+                called = true;
+            };
+            scope.$evalAsync('aFunction()');
+            scope.$$postDigest(function () {
+                expect(called).toBe(true);
+                done();
             });
         });
     });

@@ -1,37 +1,31 @@
 'use strict';
 import _ from 'lodash';
+import Module from './module';
 
-const NOT_ALOWED_MODULE_NAMES = [
-    'hasOwnProperty'
-];
 
-function checkModuleName(name){
-    if(~NOT_ALOWED_MODULE_NAMES.indexOf(name)){
-        throw Error(`'${name}' is not allowed to be the name of a module`);
-    }
-}
-
-class Angular {
-    constructor(){
+class Core {
+    constructor() {
         this.$$modules = {};
     }
-    module(name, deps) {
-        if(!_.isArray(deps)){
-            return this.getModule(name);
+
+    module(name, requires, configFn) {
+        if (!_.isArray(requires)) {
+            return this.$$getModule(name);
         }
-        return this.createModule(name, deps);
+        return this.$$createModule(name, requires, configFn);
     }
-    createModule(name, requires){
-        checkModuleName(name);
-        return this.$$modules[name] = {name, requires};
+
+    $$createModule(name, requires, configFn) {
+        return this.$$modules[name] = new Module(name, requires, configFn);
     }
-    getModule(name){
+
+    $$getModule(name) {
         var module = this.$$modules[name];
-        if(!module){
+        if (!module) {
             throw Error(`Module ${name} is not available`);
         }
         return module;
     }
 }
 
-export default Angular;
+export default Core;

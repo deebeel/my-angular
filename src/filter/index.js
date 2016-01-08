@@ -1,10 +1,10 @@
 'use strict';
-var filters = {};
+import $FilterProvider from './filter';
 
-var register = (name, factory)=> {
-    return filters[name] = factory();
-};
+if (TEST) {
+    require('./filter.spec.js');
+}
 
-var filter = name=> {
-    return filters[name];
-};
+export default $FilterProvider;
+
+

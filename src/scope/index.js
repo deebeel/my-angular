@@ -1,9 +1,9 @@
 'use strict';
-import Scope from './Scope';
+import $RootScopeProvider from './Scope';
 
 
-if(TEST){
+if (TEST) {
     require('./scope.spec.js');
 }
 
-export default Scope;
+export default $RootScopeProvider;

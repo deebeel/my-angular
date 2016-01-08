@@ -13,35 +13,36 @@ import {
 } from 'lodash';
 
 class $ParseProvider {
-    static default = {
-        $get: ['$filter', function ($filter) {
-            return function (expr) {
-                if (isFunction(expr)) {
-                    return expr;
-                }
-                if (isString(expr)) {
-                    var parser = new Parser($filter);
-                    var oneTime = false;
-                    if (startsWith(expr, '::')) {
-                        oneTime = true;
-                        expr = expr.substring(2);
-                    }
-                    var fn = parser.parse(expr);
-
-                    if (fn.constant) {
-                        fn.$$watchDelegate = constantWatchDelegate;
-                    } else if (oneTime) {
-                        fn.$$watchDelegate = fn.literal ? oneTimeLiteralWatchDelegate : oneTimeWatchDelegate;
-                    } else if (fn.inputs) {
-                        fn.$$watchDelegate = inputWatchDelegate;
-                    }
-                    return fn;
-                }
-                return Function.prototype;
-            };
-        }]
+    constructor() {
+        this.$get = $parseFactory;
     }
 }
+function $parseFactory($filter) {
+    return function (expr) {
+        if (isFunction(expr)) {
+            return expr;
+        }
+        if (isString(expr)) {
+            var parser = new Parser($filter);
+            var oneTime = false;
+            if (startsWith(expr, '::')) {
+                oneTime = true;
+                expr = expr.substring(2);
+            }
+            var fn = parser.parse(expr);
+            if (fn.constant) {
+                fn.$$watchDelegate = constantWatchDelegate;
+            } else if (oneTime) {
+                fn.$$watchDelegate = fn.literal ? oneTimeLiteralWatchDelegate : oneTimeWatchDelegate;
+            } else if (fn.inputs) {
+                fn.$$watchDelegate = inputWatchDelegate;
+            }
+            return fn;
+        }
+        return Function.prototype;
+    };
+}
+$parseFactory.$inject = ['$filter'];
 
 var inputWatchDelegate = (scope, listenerFn, valueEq, watchFn)=> {
     var lastResult,
@@ -118,4 +119,4 @@ var constantWatchDelegate = (scope, listenerFn, valueEq, watchFn)=> {
     return unwatch;
 };
 
-export default parse;
+export default $ParseProvider;

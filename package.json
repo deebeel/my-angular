@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "arrify": "^1.0.1",
     "babel-core": "latest",
     "babel-loader": "^6.2.0",
     "babel-preset-es2015": "latest",
@@ -22,9 +23,9 @@
     "karma-phantomjs-launcher": "*",
     "karma-should": "^1.0.0",
     "karma-webpack": "latest",
+    "lodash": "^3.10.1",
     "mocha": "^2.3.4",
     "phantomjs": "^1.9.19",
-    "ramda": "^0.19.0",
     "should": "^8.0.2",
     "sinon": "^1.17.2",
     "webpack": "latest"
