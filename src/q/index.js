@@ -1,9 +1,6 @@
 'use strict';
 import $QFactory from './q';
 
-if (TEST) {
-    require('./q.spec');
-}
 
 
 class $QProvider {

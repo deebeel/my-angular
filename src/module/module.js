@@ -20,6 +20,8 @@ class Module {
         factory: invokeLater('$provide', 'factory'),
         service: invokeLater('$provide', 'service'),
         filter: invokeLater('$filterProvider', 'register'),
+        controller: invokeLater('$controllerProvider', 'register'),
+        directive: invokeLater('$compileProvider', 'directive'),
         decorator: invokeLater('$provide', 'decorator'),
         value: invokeLater('$provide', 'value', 'unshift'),
         config: invokeLater('$injector', 'invoke', 'push', '$$configBlocks'),

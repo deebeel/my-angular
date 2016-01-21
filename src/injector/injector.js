@@ -105,7 +105,7 @@ function createInjector(moduleNames, core, strict) {
                     throw Error(`Incorrect inject token! Expected  a string, got ${name}`);
                 }
                 arg = locals && locals[name];
-                return _.isUndefined(arg) ? getService(name) : arg;
+                return arg == null ? getService(name) : arg;
             });
         }
 

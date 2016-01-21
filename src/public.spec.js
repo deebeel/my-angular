@@ -2,6 +2,17 @@
 import publishExternalApi from './module';
 import createInjector from './injector';
 
+require('./parse/parse.spec.js');
+require('./q/q.spec');
+
+require('./module/module.spec.js');
+require('./filter/filter.spec.js');
+require('./injector/injector.spec.js');
+require('./scope/scope.spec');
+require('./compile/compile.spec.js');
+require('./directives/ngController.spec');
+require('./controller/controller.spec.js');
+
 
 describe('public api', ()=> {
     var core, injector;
@@ -21,6 +32,12 @@ describe('public api', ()=> {
 
     it('sets up $q', function() {
         expect(injector.has('$$q')).toBe(true);
+    });
+    it('sets up $compile', function() {
+        expect(injector.has('$compile')).toBe(true);
+    });
+    it('sets up $controller', function() {
+        expect(injector.has('$controller')).toBe(true);
     });
 });
 
@@ -59,3 +76,4 @@ describe('TTL configurability', function () {
         }).toThrow();
     });
 });
+
